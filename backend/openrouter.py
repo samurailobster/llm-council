@@ -14,13 +14,18 @@ async def query_model(
     Query a single model via OpenRouter API.
 
     Args:
-        model: OpenRouter model identifier (e.g., "openai/gpt-4o")
+        model: Model identifier (e.g., "openai/gpt-4o" or "lmstudio/mistral-7b")
         messages: List of message dicts with 'role' and 'content'
         timeout: Request timeout in seconds
 
     Returns:
         Response dict with 'content' and optional 'reasoning_details', or None if failed
     """
+    # If model is for LM Studio, route to lmstudio client
+    if model.startswith("lmstudio/"):
+        from .lmstudio import query_model as lmstudio_query_model
+        return await lmstudio_query_model(model, messages, timeout)
+
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
         "Content-Type": "application/json",
@@ -61,7 +66,7 @@ async def query_models_parallel(
     Query multiple models in parallel.
 
     Args:
-        models: List of OpenRouter model identifiers
+        models: List of model identifiers (e.g., "openai/gpt-4o" or "lmstudio/mistral-7b")
         messages: List of message dicts to send to each model
 
     Returns:

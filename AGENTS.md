@@ -1,4 +1,4 @@
-# CLAUDE.md - Technical Notes for LLM Council
+# AGENTS.md - Technical Notes for LLM Council
 
 This file contains technical details, architectural decisions, and important implementation notes for future development sessions.
 
@@ -11,19 +11,28 @@ LLM Council is a 3-stage deliberation system where multiple LLMs collaboratively
 ### Backend Structure (`backend/`)
 
 **`config.py`**
-- Contains `COUNCIL_MODELS` (list of OpenRouter model identifiers)
+- Contains `COUNCIL_MODELS` (list of OpenRouter and LM Studio model identifiers)
 - Contains `CHAIRMAN_MODEL` (model that synthesizes final answer)
 - Uses environment variable `OPENROUTER_API_KEY` from `.env`
+- Adds `LM_STUDIO_BASE_URL` (default: `http://localhost:1234/v1`) for local LLM access
 - Backend runs on **port 8001** (NOT 8000 - user had another app on 8000)
 
 **`openrouter.py`**
-- `query_model()`: Single async model query
-- `query_models_parallel()`: Parallel queries using `asyncio.gather()`
+- `query_model()`: Single async model query with automatic routing
+    - If model starts with `"lmstudio/"`, routes to local LM Studio client
+    - Otherwise, queries OpenRouter API
+- `query_models_parallel()`: Parallel queries using `asyncio.gather()` for all models
 - Returns dict with 'content' and optional 'reasoning_details'
 - Graceful degradation: returns None on failure, continues with successful responses
 
+**`lmstudio.py`**
+- New module implementing local LLM client for LM Studio
+- Connects to `http://localhost:1234/v1/chat/completions`
+- Uses same response format as OpenRouter (`content`, `reasoning_details`)
+- No authentication required — supports any locally hosted model
+
 **`council.py`** - The Core Logic
-- `stage1_collect_responses()`: Parallel queries to all council models
+- `stage1_collect_responses()`: Parallel queries to all council models (cloud + local)
 - `stage2_collect_rankings()`:
   - Anonymizes responses as "Response A, B, C, etc."
   - Creates `label_to_model` mapping for de-anonymization
@@ -72,7 +81,7 @@ LLM Council is a 3-stage deliberation system where multiple LLMs collaboratively
 - Final synthesized answer from chairman
 - Green-tinted background (#f0fff0) to highlight conclusion
 
-**Styling (`*.css`)**
+**Styling (`*.css`)** 
 - Light mode theme (not dark mode)
 - Primary color: #4a90e2 (blue)
 - Global markdown styling in `index.css` with `.markdown-content` class
@@ -125,12 +134,19 @@ All ReactMarkdown components must be wrapped in `<div className="markdown-conten
 ### Model Configuration
 Models are hardcoded in `backend/config.py`. Chairman can be same or different from council members. The current default is Gemini as chairman per user preference.
 
+### Local LLM Integration
+- Add `"lmstudio/model-name"` to `COUNCIL_MODELS` to enable local models (e.g., `"lmstudio/mistral-7b"`)
+- LM Studio must be running locally at `http://localhost:1234/v1` (configurable via `LM_STUDIO_BASE_URL`)
+- No API key required — all communication is direct and unauthenticated
+- Models are routed automatically by backend based on prefix; frontend requires no changes
+
 ## Common Gotchas
 
 1. **Module Import Errors**: Always run backend as `python -m backend.main` from project root, not from backend directory
 2. **CORS Issues**: Frontend must match allowed origins in `main.py` CORS middleware
 3. **Ranking Parse Failures**: If models don't follow format, fallback regex extracts any "Response X" patterns in order
 4. **Missing Metadata**: Metadata is ephemeral (not persisted), only available in API responses
+5. **LM Studio Not Responding**: Ensure LM Studio server is running and model name matches exactly (e.g., `lmstudio/mistral-7b` not `mistral-7b`)
 
 ## Future Enhancement Ideas
 
@@ -140,10 +156,16 @@ Models are hardcoded in `backend/config.py`. Chairman can be same or different f
 - Model performance analytics over time
 - Custom ranking criteria (not just accuracy/insight)
 - Support for reasoning models (o1, etc.) with special handling
+- Support for additional local model servers (Ollama, vLLM) using same prefix pattern
 
 ## Testing Notes
 
 Use `test_openrouter.py` to verify API connectivity and test different model identifiers before adding to council. The script tests both streaming and non-streaming modes.
+
+To test LM Studio integration:
+1. Start a local model in LM Studio
+2. Add `"lmstudio/model-name"` to `COUNCIL_MODELS`
+3. Send a query — the response should route through localhost:1234 without using OpenRouter API key
 
 ## Data Flow Summary
 

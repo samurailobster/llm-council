@@ -2,7 +2,7 @@
 
 from typing import List, Dict, Any, Tuple
 from .openrouter import query_models_parallel, query_model
-from .config import COUNCIL_MODELS, CHAIRMAN_MODEL
+from .config import COUNCIL_MODELS, CHAIRMAN_MODEL, LM_STUDIO_BASE_URL
 
 
 async def stage1_collect_responses(user_query: str) -> List[Dict[str, Any]]:
